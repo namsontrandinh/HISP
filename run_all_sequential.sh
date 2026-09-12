@@ -3,26 +3,39 @@
 # Không cần ngồi canh: chạy 1 lần "nohup bash run_all_sequential.sh &"
 # rồi đi ngủ, sáng dậy xem log là biết chạy tới đâu.
 #
-# Đã BỎ Extended/train/LT/random vì đã chạy xong trước đó.
+# Đủ cả 48 lệnh gốc — 2 lệnh đã chạy xong (Extended/train/LT/random,
+# Extended/train/LT/degree) được COMMENT lại, không xoá.
 
 cd ~/Documents/HISP/HISP
 
 echo "===== BẮT ĐẦU — $(date) ====="
 
-# --- Extended / LT (3 lệnh còn lại, đã bỏ train/random) ---
-echo "--- Extended/train/LT/degree — $(date) ---"
-./fast_monte_carlo_LT_degree graphs/Extended_train_LT.txt
+# --- Extended / LT (4 lệnh đầy đủ — 2 lệnh đã chạy xong bị comment lại,
+#     không xoá, để dễ đối chiếu / bật lại nếu cần chạy lại sau này) ---
 
-echo "--- Extended/test/LT/random — $(date) ---"
-./fast_monte_carlo_LT_random graphs/Extended_test_LT.txt
+# ĐÃ CHẠY XONG (đêm 9/9, ~4h) — không cần chạy lại:
+# echo "--- Extended/train/LT/random — $(date) ---"
+# ./fast_monte_carlo_LT_random graphs/Extended_train_LT.txt
 
-echo "--- Extended/test/LT/degree — $(date) ---"
-./fast_monte_carlo_LT_degree graphs/Extended_test_LT.txt
+# ĐÃ CHẠY XONG (đêm 9/9, ~8h) — không cần chạy lại:
+# echo "--- Extended/train/LT/degree — $(date) ---"
+# ./fast_monte_carlo_LT_degree graphs/Extended_train_LT.txt
+
+# ĐÃ CHẠY XONG (phiên chạy bị tắt đột ngột 10/9) — không cần chạy lại:
+# echo "--- Extended/test/LT/random — $(date) ---"
+# ./fast_monte_carlo_LT_random graphs/Extended_test_LT.txt
+
+# ĐÃ CHẠY XONG (phiên chạy bị tắt đột ngột 10/9) — không cần chạy lại:
+# echo "--- Extended/test/LT/degree — $(date) ---"
+# ./fast_monte_carlo_LT_degree graphs/Extended_test_LT.txt
 
 # --- Celebrity / LT ---
-echo "--- Celebrity/train/LT/random — $(date) ---"
-./fast_monte_carlo_LT_random graphs/Celebrity_train_LT.txt
+# ĐÃ CHẠY XONG (phiên chạy bị tắt đột ngột 10/9) — không cần chạy lại:
+# echo "--- Celebrity/train/LT/random — $(date) ---"
+# ./fast_monte_carlo_LT_random graphs/Celebrity_train_LT.txt
 
+# DỞ DANG (dừng ở turn ~3824/4000 khi bị tắt) — binary KHÔNG resume
+# được, PHẢI chạy lại từ đầu:
 echo "--- Celebrity/train/LT/degree — $(date) ---"
 ./fast_monte_carlo_LT_degree graphs/Celebrity_train_LT.txt
 

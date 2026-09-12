@@ -101,7 +101,7 @@ int do_task(int i, int real_seed_size){
 
 
 int main(int argc, char **argv){
-	omp_set_num_threads(4);
+	omp_set_num_threads(8);
     // initialization for generating random numbers
 	for(int i=0;i<MAX_N;i++){
 		gen[i] = std::mt19937((rd[i])());
