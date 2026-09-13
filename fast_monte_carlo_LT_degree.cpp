@@ -19,7 +19,7 @@
 
 #define BATCH_SIZE 20
 #define MAX_N 20000
-#define TEST_COUNT 100000
+#define TEST_COUNT 1000
 #define MIN_SEED_SIZE 1
 #define MAX_ITER 100
 
