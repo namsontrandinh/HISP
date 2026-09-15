@@ -29,12 +29,13 @@ def train():
     # use only single GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-    # re-arange to load graphs
-    graph_names = list(filter(lambda x: (x != args.target), graph_names)) + [args.target]
-    train_labels = [(graph_names[0], 'train', prob) for prob in prob_names] + [(graph_names[1], 'train', prob) for prob
-                                                                               in prob_names]
-    val_labels = [(graph_names[0], 'val', prob) for prob in prob_names] + [(graph_names[1], 'val', prob) for prob in
-                                                                           prob_names]
+    # HUONG B - CHAN DOAN TAM THOI: chi dung 1 dataset (target) cho
+    # ca train lan val, de test nhanh pipeline GPU/H9 hoat dong dung
+    # chua, KHONG PHAI train chinh thuc (thieu tinh tong quat hoa
+    # "train tren 2 mang, test tren mang chua thay" theo dung paper).
+    # Sua lai dong duoi khi Celebrity+WannaCry da co du lieu processing.
+    train_labels = [(args.target, 'train', prob) for prob in prob_names]
+    val_labels = [(args.target, 'val', prob) for prob in prob_names]
 
     print('train_labels: {}'.format(train_labels))
     print('val_labels: {}'.format(val_labels))
