@@ -15,7 +15,7 @@ import math
 from tqdm import tqdm
 
 torch.set_num_threads(1)
-graph_names = ['Extended', 'Celebrity', 'WannaCry']
+graph_names = ['Extended', 'Celebrity', 'WannaCry']  # dung rieng cho TEST (giu nguyen, khong doi)
 prob_names = ['LT']
 
 
@@ -29,18 +29,45 @@ def train():
     # use only single GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
 
-    # HUONG B - CHAN DOAN TAM THOI: chi dung 1 dataset (target) cho
-    # ca train lan val, de test nhanh pipeline GPU/H9 hoat dong dung
-    # chua, KHONG PHAI train chinh thuc (thieu tinh tong quat hoa
-    # "train tren 2 mang, test tren mang chua thay" theo dung paper).
-    # Sua lai dong duoi khi Celebrity+WannaCry da co du lieu processing.
-    train_labels = [(args.target, 'train', prob) for prob in prob_names]
-    val_labels = [(args.target, 'val', prob) for prob in prob_names]
+    # DA SUA: train tren 130 do thi TONG HOP (theo chi dao co Dung -
+    # khong dung Extended/Celebrity/WannaCry de train, chi dung de TEST
+    # rieng sau nay). Ca 130 do thi deu dong gop vao CA train_labels
+    # LAN val_labels - dung khuon mau code goc (Extended+Celebrity
+    # cung dong gop ca 2), vi moi do thi da tu chia san 80/20
+    # (1600 tuple train + 400 tuple val) tu buoc processing.py.
+    import glob, random
+    synth_files = glob.glob('graphs/synth-*_train_LT.txt')
+    synth_names = sorted(os.path.basename(f).replace('_train_LT.txt', '') for f in synth_files)
+    if not synth_names:
+        print("LOI: khong tim thay do thi tong hop nao trong graphs/synth-*_train_LT.txt")
+        sys.exit(1)
+
+    # DA SUA: load_data() don TOAN BO du lieu vao RAM cung luc - da do
+    # thuc te 1 do thi (n=303) chiem ~0.86GB, 130 do thi se can ~112GB,
+    # vuot xa RAM may (15GB) -> OOM chac chan. Gioi han so do thi/lan
+    # chay bang MAX_SYNTH_GRAPHS, chon ngau nhien (seed co dinh de tai
+    # lap duoc) thay vi dung het 130. Tang dan so nay o lan chay sau
+    # neu con du RAM, dua tren ket qua do thuc te lan nay.
+    MAX_SYNTH_GRAPHS = 15
+    if len(synth_names) > MAX_SYNTH_GRAPHS:
+        rng_synth = random.Random(42)
+        synth_names = sorted(rng_synth.sample(synth_names, MAX_SYNTH_GRAPHS))
+        print(f"CANH BAO: gioi han con {MAX_SYNTH_GRAPHS}/{len(glob.glob('graphs/synth-*_train_LT.txt'))} "
+              f"do thi de tranh OOM (da do: 1 do thi ~0.86GB RAM, 130 do thi ~112GB vuot RAM 15GB)")
+    print(f"Dung {len(synth_names)} do thi tong hop de train+val: {synth_names}")
+
+    train_labels = [(name, 'train', prob) for name in synth_names for prob in prob_names]
+    val_labels = [(name, 'val', prob) for name in synth_names for prob in prob_names]
 
     print('train_labels: {}'.format(train_labels))
     print('val_labels: {}'.format(val_labels))
 
-    g, sX, sy, X, y, _g, _sX, _sy = load_data(train_labels=train_labels, val_labels=val_labels, test_labels=[])
+    # DA SUA: doi feature_mode de train model HISP (khong con la
+    # MONSTOR+ doi chung mac dinh 'exact'). Doi 'est1'/'est2' tuy
+    # model dang train - hien dat 'est1' (HISP dung Estimator 1,
+    # path-sampling).
+    g, sX, sy, X, y, _g, _sX, _sy = load_data(train_labels=train_labels, val_labels=val_labels, test_labels=[],
+                                              feature_mode='est1', est_s=1000)
 
     model = MONSTOR(in_feats=args.input_dim + 10, n_hidden=args.hidden_dim, n_layers=args.layer_num).cuda()
     model.train()  # train mode
@@ -163,7 +190,7 @@ if __name__ == '__main__':
     if not args.input_dim: args.input_dim = 4
 
     # argument validation
-    if not args.target or args.target not in graph_names:
+    if not args.target:  # DA SUA: bo yeu cau target phai nam trong graph_names (khong con ap dung khi train tren du lieu tong hop)
         print("invalid target graph")
         sys.exit()
     if type(args.input_dim) != int or args.input_dim < 2:
