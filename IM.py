@@ -14,39 +14,46 @@ import time
 
 torch.set_num_threads(4)
 
-graph_names = ['Extended', 'Celebrity', 'WannaCry']
+graph_names = ['Extended']  # DA SUA: chi chay Extended (dataset Est1 co
+# Pearson tot gan bang WannaCry nhung nho hon 3.6 lan -> CELF nhanh
+# hon nhieu, phu hop deadline "chay xong sang nay". Doi lai thanh
+# ['Celebrity','WannaCry'] hoac ca 3 neu muon chay them sau.
 prob_names = ['BT', 'JI', 'LP', 'LT']
 model = None
+
 
 def eval_batch(target_graph, init_state, batch_size, n_stacks):
     n_features = 4
     _V = target_graph.number_of_nodes() // batch_size
     idxseq = [0, 1, 2, 3, 0, 1, 2, 3]
-    now, prv = -1, -1   
+    now, prv = -1, -1
     with torch.no_grad():
         x = torch.zeros(target_graph.number_of_nodes(), n_features, requires_grad=False).cuda()
-        x[:, n_features-1] = x[:, 0] = init_state
-        for j in range(1, n_stacks+1):
-            now, prv = j%4, (j+3)%4
-            x[:, now] = model(target_graph, torch.cat((target_graph.ndata['idfeat'].detach(), x[:, idxseq[now:now+4]]), dim=-1)).data
+        x[:, n_features - 1] = x[:, 0] = init_state
+        for j in range(1, n_stacks + 1):
+            now, prv = j % 4, (j + 3) % 4
+            x[:, now] = model(target_graph,
+                              torch.cat((target_graph.ndata['idfeat'].detach(), x[:, idxseq[now:now + 4]]),
+                                        dim=-1)).data
             x[:, prv] = x[:, now] - x[:, prv]
             if torch.sum(x[:, prv]) < 1e-6 * batch_size:
                 break
-        return [torch.sum(x[i:(i+_V), now]).item() for i in range(0, _V * batch_size, _V)]
+        return [torch.sum(x[i:(i + _V), now]).item() for i in range(0, _V * batch_size, _V)]
+
 
 def celf(target_graph, batch_size, n_stacks):
     s = time.time()
     V = target_graph.number_of_nodes()
-    
+
     delta = [1e10 for _ in range(V)]
     update_time = [-1 for _ in range(V)]
-    que = PriorityQueue(maxsize=V+1)
+    que = PriorityQueue(maxsize=V + 1)
     for i in range(V):
         que.put((-delta[i], i))
-    
+
     batched_graph = dgl.batch([target_graph for _ in range(batch_size)])
     cnt, prv_mc, ans, curr = 0, 0, [], torch.zeros(V * batch_size)
-    
+
     while (not que.empty()) and cnt < 100:
         _, idx = que.get()
         if update_time[idx] == cnt:
@@ -66,22 +73,24 @@ def celf(target_graph, batch_size, n_stacks):
             for i in range(batch_size):
                 update_time[idxs[i]], delta[idxs[i]] = cnt, (nxt_delta[i] - prv_mc)
                 que.put((-delta[idxs[i]], idxs[i]))
-            
+
     # monitor(_print=True)
     return ans
+
 
 def ublf(target_graph, eps, batch_size, n_stacks):
     s = time.time()
     graph1 = DGLGraph()
-    V, E = target_graph.number_of_nodes(), target_graph.number_of_edges() 
+    V, E = target_graph.number_of_nodes(), target_graph.number_of_edges()
     graph1.add_nodes(V)
-    
+
     # Flip the direction of edges
-    graph1.add_edges(target_graph.edges()[1].cpu(), target_graph.edges()[0].cpu(), {'weight': target_graph.edata['weight'].cpu()})
+    graph1.add_edges(target_graph.edges()[1].cpu(), target_graph.edges()[0].cpu(),
+                     {'weight': target_graph.edata['weight'].cpu()})
     graph = graph1.to(torch.device('cuda'))
     graph.ndata['ub'] = torch.ones(V).cuda()
     graph.ndata['a'] = torch.ones(V).cuda()
-    
+
     # Compute UBound
     while True:
         graph.update_all(message_func=fn.u_mul_e('a', 'weight', 'msg'), reduce_func=fn.sum(msg='msg', out='ub_delta'))
@@ -90,17 +99,17 @@ def ublf(target_graph, eps, batch_size, n_stacks):
         graph.ndata['a'] = ub_delta
         if torch.sum(ub_delta).item() < eps:
             break
-    
+
     delta = graph.ndata.pop('ub').data.cpu().numpy()
-    
+
     update_time = [-1 for _ in range(V)]
-    que = PriorityQueue(maxsize=V+1)
+    que = PriorityQueue(maxsize=V + 1)
     for i in range(V):
         que.put((-delta[i], i))
-    
+
     batched_graph = dgl.batch([target_graph for _ in range(batch_size)])
     cnt, prv_mc, ans, curr = 0, 0, [], torch.zeros(V * batch_size)
-    
+
     while (not que.empty()) and cnt < 100:
         _, idx = que.get()
         if update_time[idx] == cnt:
@@ -120,33 +129,36 @@ def ublf(target_graph, eps, batch_size, n_stacks):
                 que.put((-delta[idxs[i]], idxs[i]))
     return ans
 
+
 def IM():
     global graph_names
     global model
-    
+
     # use only single GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-    
+
     test_labels = [(graph_name, 'test', args.prob) for graph_name in graph_names]
     print('test_labels: {}'.format(test_labels))
-    
-    g, sX, sy, X, y, _g, _sX, _sy = load_data(train_labels=[], val_labels=[], test_labels=test_labels)
+
+    g, sX, sy, X, y, _g, _sX, _sy = load_data(train_labels=[], val_labels=[], test_labels=test_labels,
+                                              feature_mode=args.feature_mode,
+                                              est_s=args.est_s, est_T=args.est_T)
     model = MONSTOR(in_feats=args.input_dim + 10, n_hidden=args.hidden_dim, n_layers=args.layer_num).cuda()
     model.load_state_dict(torch.load(args.checkpoint_path))
     model.eval()
-    
+
     with torch.no_grad():
         for tl in test_labels:
             lstr = '_'.join(tl)
             selected = None
-            if args.prob == 'LP' or args.prob == 'LT': # since UBLF cannot used for LP
+            if args.prob == 'LP' or args.prob == 'LT':  # since UBLF cannot used for LP
                 selected = celf(_g[lstr], 20, args.n_stacks)
             else:
                 selected = ublf(_g[lstr], 1e-6, 20, args.n_stacks)
-           
+
             print("for target graph {} | Selected nodes are {}".format(tl[0], ' '.join(map(str, selected))))
-    
-        
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-dim", type=int, help="input dimension")
@@ -156,10 +168,16 @@ if __name__ == '__main__':
     parser.add_argument("--prob", help="target activation probablity")
     parser.add_argument("--n-stacks", type=int, help="number of stacks")
     parser.add_argument("--gpu", type=int, help="gpu number")
-    
+    # DA THEM: chon cach tinh dac trung cau truc cho graph TEST, phai
+    # KHOP voi cach da dung luc TRAIN checkpoint dang nap (H9 wiring)
+    parser.add_argument("--feature-mode", default="exact",
+                        help="'exact' (MONSTOR+) | 'est1' (HISP-I) | 'est2' (HISP-Vec)")
+    parser.add_argument("--est-s", type=int, default=1000, help="so mau cho HISP-I")
+    parser.add_argument("--est-T", type=int, default=1000, help="so probe cho HISP-Vec")
+
     args = parser.parse_args()
     if not args.input_dim: args.input_dim = 4
-    
+
     # argument validation
     if type(args.input_dim) != int or args.input_dim < 2 or args.input_dim > 4:
         print("invalid input dimension")
@@ -182,7 +200,7 @@ if __name__ == '__main__':
     if args.n_stacks is None or args.n_stacks < 1:
         print("invalid number of stacks")
         sys.exit()
-    
+
     print('input_dim: {}, hidden_dim: {}, layer_num: {}'.format(args.input_dim, args.hidden_dim, args.layer_num))
     print('checkpoint_path: {}'.format(args.checkpoint_path))
     print('activation probablity: {}, # of stacks: {}'.format(args.prob, args.n_stacks))
